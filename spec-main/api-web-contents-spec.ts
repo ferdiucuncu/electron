@@ -760,7 +760,7 @@ describe('webContents module', () => {
       }).to.throw('Must specify non-empty \'icon\' option');
 
       expect(() => {
-        w.webContents.startDrag({ file: __filename, icon: __filename });
+        w.webContents.startDrag({ file: __filename, icon: path.join(fixturesPath, 'api', 'blank.html') });
       }).to.throw('Must specify non-empty \'icon\' option');
     });
   });

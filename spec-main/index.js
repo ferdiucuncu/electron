@@ -16,6 +16,12 @@ process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
 const { app, protocol } = require('electron');
 
+try {
+  require('fs').rmdirSync(app.getPath('userData'), { recursive: true });
+} catch (e) {
+  console.warn('Warning: couldn\'t clear user data directory:', e);
+}
+
 v8.setFlagsFromString('--expose_gc');
 app.commandLine.appendSwitch('js-flags', '--expose_gc');
 // Prevent the spec runner quiting when the first window closes
