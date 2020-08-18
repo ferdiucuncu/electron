@@ -5,6 +5,7 @@
 #include <string>
 
 #include "base/files/file_util.h"
+#include "base/logging.h"
 #include "base/strings/pattern.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
@@ -95,26 +96,54 @@ bool AddImageSkiaRepFromBuffer(gfx::ImageSkia* image,
                                int width,
                                int height,
                                double scale_factor) {
+  LOG(INFO) << "IN AddImageSkiaRepFromBuffer, try PNG";
   // Try PNG first.
-  if (AddImageSkiaRepFromPNG(image, data, size, scale_factor))
+  if (AddImageSkiaRepFromPNG(image, data, size, scale_factor)) {
+    LOG(INFO) << "IN AddImageSkiaRepFromBuffer, PNG worked";
     return true;
+  }
 
+  LOG(INFO) << "IN AddImageSkiaRepFromBuffer, PNG did not work; try JPEG";
   // Try JPEG second.
-  if (AddImageSkiaRepFromJPEG(image, data, size, scale_factor))
+  if (AddImageSkiaRepFromJPEG(image, data, size, scale_factor)) {
+    LOG(INFO) << "IN AddImageSkiaRepFromBuffer, JPEG worked";
     return true;
+  }
 
-  if (width == 0 || height == 0)
+  if (width == 0 || height == 0) {
+    LOG(INFO) << "IN AddImageSkiaRepFromBuffer, returning false because width "
+              << width << " or height " << height << " are 0.";
     return false;
+  }
 
   auto info = SkImageInfo::MakeN32(width, height, kPremul_SkAlphaType);
   if (size < info.computeMinByteSize())
     return false;
 
   SkBitmap bitmap;
+  LOG(INFO) << "IN AddImageSkiaRepFromBuffer, about to call "
+               "bitmap.allocN32Pixels with width:"
+            << width << " and height " << height << ".";
   bitmap.allocN32Pixels(width, height, false);
-  bitmap.writePixels({info, data, bitmap.rowBytes()});
+  LOG(INFO) << "IN AddImageSkiaRepFromBuffer, successfully called "
+               "bitmap.allocN32Pixels with width:"
+            << width << " and height " << height << ".";
+  bool didWritePixels = bitmap.writePixels({info, data, bitmap.rowBytes()});
+  if (didWritePixels) {
+    LOG(INFO) << "IN AddImageSkiaRepFromBuffer, successfully called "
+                 "bitmap.didWritePixels.";
+  } else {
+    LOG(INFO) << "IN AddImageSkiaRepFromBuffer, FAILED calling "
+                 "bitmap.didWritePixels.";
+  }
 
-  image->AddRepresentation(gfx::ImageSkiaRep(bitmap, scale_factor));
+  gfx::ImageSkiaRep imgSkiaRep = gfx::ImageSkiaRep(bitmap, scale_factor);
+  if (imgSkiaRep.is_null()) {
+    LOG(INFO) << "IN AddImageSkiaRepFromBuffer, image_rep.is_null UH OH.";
+  } else {
+    LOG(INFO) << "IN AddImageSkiaRepFromBuffer, image_rep.is NOT null YES.";
+  }
+  image->AddRepresentation(imgSkiaRep);
   return true;
 }
 

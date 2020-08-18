@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/files/file_util.h"
+#include "base/logging.h"
 #include "base/strings/pattern.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -484,9 +485,14 @@ gin::Handle<NativeImage> NativeImage::CreateFromBuffer(
   }
 
   gfx::ImageSkia image_skia;
-  electron::util::AddImageSkiaRepFromBuffer(
+  bool skia_rep_added = electron::util::AddImageSkiaRepFromBuffer(
       &image_skia, reinterpret_cast<unsigned char*>(node::Buffer::Data(buffer)),
       node::Buffer::Length(buffer), width, height, scale_factor);
+  if (skia_rep_added) {
+    LOG(INFO) << "IN NativeImage::CreateFromBuffer, skia_rep_added";
+  } else {
+    LOG(INFO) << "IN NativeImage::CreateFromBuffer, skia_rep_added is FALSE!";
+  }
   return Create(args->isolate(), gfx::Image(image_skia));
 }
 
