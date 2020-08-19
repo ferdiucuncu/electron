@@ -73,9 +73,13 @@ bool AddImageSkiaRepFromJPEG(gfx::ImageSkia* image,
                              const unsigned char* data,
                              size_t size,
                              double scale_factor) {
+  LOG(INFO) << "IN AddImageSkiaRepFromJPEG";
   auto bitmap = gfx::JPEGCodec::Decode(data, size);
-  if (!bitmap)
+  if (!bitmap) {
+    LOG(INFO) << "IN AddImageSkiaRepFromJPEG DO NOT have bitmap";
     return false;
+  }
+  LOG(INFO) << "IN AddImageSkiaRepFromJPEG Have bitmap";
 
   // `JPEGCodec::Decode()` doesn't tell `SkBitmap` instance it creates
   // that all of its pixels are opaque, that's why the bitmap gets
@@ -85,8 +89,10 @@ bool AddImageSkiaRepFromJPEG(gfx::ImageSkia* image,
   // when the `JPEGCodec::Decode()` code is fixed.
   // See https://github.com/electron/electron/issues/11294.
   bitmap->setAlphaType(SkAlphaType::kOpaque_SkAlphaType);
+  LOG(INFO) << "IN AddImageSkiaRepFromJPEG just set alphatype";
 
   image->AddRepresentation(gfx::ImageSkiaRep(*bitmap, scale_factor));
+  LOG(INFO) << "IN AddImageSkiaRepFromJPEG just did image->AddRepresentation";
   return true;
 }
 
