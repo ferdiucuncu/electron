@@ -1,0 +1,141 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: John Kleinschmidt <jkleinsc@github.com>
+Date: Wed, 19 Aug 2020 16:48:44 -0400
+Subject: debug: track down WOA crash on jpeg decode
+
+Try to track down why WOA is crashing on jpeg decode of a bitmap
+
+diff --git a/ui/gfx/codec/jpeg_codec.cc b/ui/gfx/codec/jpeg_codec.cc
+index d1fbdd7f562e9165c0914abcad5d2bcff550db44..168b42510c53efed114f0f4fcc7d797faa9aa842 100644
+--- a/ui/gfx/codec/jpeg_codec.cc
++++ b/ui/gfx/codec/jpeg_codec.cc
+@@ -9,6 +9,7 @@
+ #include <memory>
+ #include <ostream>
+ 
++#include "base/logging.h"
+ #include "base/notreached.h"
+ #include "third_party/skia/include/core/SkBitmap.h"
+ #include "third_party/skia/include/core/SkColorPriv.h"
+@@ -166,8 +167,10 @@ struct JpegDecompressStructDeleter {
+ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+                        ColorFormat format, std::vector<unsigned char>* output,
+                        int* w, int* h) {
++  LOG(INFO) << "IN bool JPEGCodec::Decode";
+   std::unique_ptr<jpeg_decompress_struct, JpegDecompressStructDeleter> cinfo(
+       new jpeg_decompress_struct);
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to clear output";
+   output->clear();
+ 
+   // We set up the normal JPEG error routines, then override error_exit.
+@@ -177,16 +180,20 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+   errmgr.pub.error_exit = ErrorExit;
+   // Establish the setjmp return context for ErrorExit to use.
+   if (setjmp(errmgr.setjmp_buffer)) {
++    LOG(INFO) << "IN bool JPEGCodec::Decode the JPEG code has signaled an error";
+     // If we get here, the JPEG code has signaled an error.
+     // Release |cinfo| by hand to avoid use-after-free of |errmgr|.
+     cinfo.reset();
++    LOG(INFO) << "IN bool JPEGCodec::Decode done Release |cinfo| by hand";
+     return false;
+   }
+ 
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to jpeg_create_decompress";
+   // The destroyer will destroy() cinfo on exit.  We don't want to set the
+   // destroyer's object until cinfo is initialized.
+   jpeg_create_decompress(cinfo.get());
+ 
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to set up the source manager";
+   // set up the source manager
+   jpeg_source_mgr srcmgr;
+   srcmgr.init_source = InitSource;
+@@ -195,13 +202,16 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+   srcmgr.resync_to_restart = jpeg_resync_to_restart;  // use default routine
+   srcmgr.term_source = TermSource;
+   cinfo->src = &srcmgr;
+-
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to JpegDecoderState";
+   JpegDecoderState state(input, input_size);
+   cinfo->client_data = &state;
+ 
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to jpeg_read_header";
+   // fill the file metadata into our buffer
+-  if (jpeg_read_header(cinfo.get(), true) != JPEG_HEADER_OK)
++  if (jpeg_read_header(cinfo.get(), true) != JPEG_HEADER_OK) {
++    LOG(INFO) << "IN bool JPEGCodec::Decode returning false because no jpeg_read_header";
+     return false;
++  }
+ 
+   // we want to always get RGB data out
+   switch (cinfo->jpeg_color_space) {
+@@ -221,6 +231,7 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+         cinfo->out_color_space = JCS_EXT_BGRX;
+         cinfo->output_components = 4;
+       } else {
++        LOG(INFO) << "IN bool JPEGCodec::Decode hit NOTREACHED Invalid pixel format";
+         NOTREACHED() << "Invalid pixel format";
+         return false;
+       }
+@@ -234,10 +245,12 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+       return false;
+   }
+ 
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to jpeg_calc_output_dimensions";
+   jpeg_calc_output_dimensions(cinfo.get());
+   *w = cinfo->output_width;
+   *h = cinfo->output_height;
+ 
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to jpeg_start_decompress";
+   jpeg_start_decompress(cinfo.get());
+ 
+   // FIXME(brettw) we may want to allow the capability for callers to request
+@@ -246,16 +259,21 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+ 
+   // Create memory for a decoded image and write decoded lines to the memory
+   // without conversions same as JPEGCodec::Encode().
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to Create memory for a decoded image and write decoded lines to the memory";
+   int row_write_stride = row_read_stride;
+   output->resize(row_write_stride * cinfo->output_height);
+ 
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to jpeg_read_scanlines";
+   for (int row = 0; row < static_cast<int>(cinfo->output_height); row++) {
+     unsigned char* rowptr = &(*output)[row * row_write_stride];
+-    if (!jpeg_read_scanlines(cinfo.get(), &rowptr, 1))
++    if (!jpeg_read_scanlines(cinfo.get(), &rowptr, 1)) {
++      LOG(INFO) << "IN bool JPEGCodec::Decode !jpeg_read_scanlines so return false";
+       return false;
++    }
+   }
+-
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to jpeg_finish_decompress";
+   jpeg_finish_decompress(cinfo.get());
++  LOG(INFO) << "IN bool JPEGCodec::Decode about to return true";
+   return true;
+ }
+ 
+@@ -263,17 +281,23 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+ std::unique_ptr<SkBitmap> JPEGCodec::Decode(const unsigned char* input,
+                                             size_t input_size) {
+   int w, h;
++  LOG(INFO) << "IN JPEGCodec::Decode(const unsigned char* input, size_t input_size";
+   std::vector<unsigned char> data_vector;
+-  if (!Decode(input, input_size, FORMAT_SkBitmap, &data_vector, &w, &h))
++  if (!Decode(input, input_size, FORMAT_SkBitmap, &data_vector, &w, &h)) {
++    LOG(INFO) << "IN JPEGCodec::Decode, decode was false;returning nullptr";
+     return nullptr;
++  }
++  LOG(INFO) << "IN JPEGCodec::Decode, decode was true";
+ 
+   // Skia only handles 32 bit images.
+   int data_length = w * h * 4;
+ 
+   std::unique_ptr<SkBitmap> bitmap(new SkBitmap());
++  LOG(INFO) << "IN JPEGCodec::Decode, about to bitmap->allocN32Pixels";
+   bitmap->allocN32Pixels(w, h);
++  LOG(INFO) << "IN JPEGCodec::Decode, about to  memcpy";
+   memcpy(bitmap->getAddr32(0, 0), &data_vector[0], data_length);
+-
++  LOG(INFO) << "IN JPEGCodec::Decode, about to return";
+   return bitmap;
+ }
+ 
