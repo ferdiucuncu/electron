@@ -109,16 +109,22 @@ bool AddImageSkiaRepFromBuffer(gfx::ImageSkia* image,
     LOG(INFO) << "IN AddImageSkiaRepFromBuffer, JPEG worked";
     return true;
   }
-
+  LOG(INFO)
+      << "IN AddImageSkiaRepFromBuffer, JPEG did not work try the other way";
   if (width == 0 || height == 0) {
     LOG(INFO) << "IN AddImageSkiaRepFromBuffer, returning false because width "
               << width << " or height " << height << " are 0.";
     return false;
   }
 
+  LOG(INFO) << "IN AddImageSkiaRepFromBuffer, about to SkImageInfo::MakeN32";
   auto info = SkImageInfo::MakeN32(width, height, kPremul_SkAlphaType);
-  if (size < info.computeMinByteSize())
+  LOG(INFO) << "IN AddImageSkiaRepFromBuffer, about to computeMinByteSize";
+  if (size < info.computeMinByteSize()) {
+    LOG(INFO) << "IN AddImageSkiaRepFromBuffer, size < info.computeMinByteSize";
     return false;
+  }
+  LOG(INFO) << "IN AddImageSkiaRepFromBuffer, size is ok";
 
   SkBitmap bitmap;
   LOG(INFO) << "IN AddImageSkiaRepFromBuffer, about to call "
