@@ -6,7 +6,7 @@ Subject: debug: track down WOA crash on jpeg decode
 Try to track down why WOA is crashing on jpeg decode of a bitmap
 
 diff --git a/ui/gfx/codec/jpeg_codec.cc b/ui/gfx/codec/jpeg_codec.cc
-index d1fbdd7f562e9165c0914abcad5d2bcff550db44..168b42510c53efed114f0f4fcc7d797faa9aa842 100644
+index d1fbdd7f562e9165c0914abcad5d2bcff550db44..ba71382c480ee3d62e6cc21b3da603b2382b94c7 100644
 --- a/ui/gfx/codec/jpeg_codec.cc
 +++ b/ui/gfx/codec/jpeg_codec.cc
 @@ -9,6 +9,7 @@
@@ -49,7 +49,7 @@ index d1fbdd7f562e9165c0914abcad5d2bcff550db44..168b42510c53efed114f0f4fcc7d797f
    // set up the source manager
    jpeg_source_mgr srcmgr;
    srcmgr.init_source = InitSource;
-@@ -195,13 +202,16 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+@@ -195,13 +202,17 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
    srcmgr.resync_to_restart = jpeg_resync_to_restart;  // use default routine
    srcmgr.term_source = TermSource;
    cinfo->src = &srcmgr;
@@ -65,10 +65,11 @@ index d1fbdd7f562e9165c0914abcad5d2bcff550db44..168b42510c53efed114f0f4fcc7d797f
 +    LOG(INFO) << "IN bool JPEGCodec::Decode returning false because no jpeg_read_header";
      return false;
 +  }
++  LOG(INFO) << "IN bool JPEGCodec::Decode we must have jpeg_read_header";
  
    // we want to always get RGB data out
    switch (cinfo->jpeg_color_space) {
-@@ -221,6 +231,7 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+@@ -221,6 +232,7 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
          cinfo->out_color_space = JCS_EXT_BGRX;
          cinfo->output_components = 4;
        } else {
@@ -76,7 +77,11 @@ index d1fbdd7f562e9165c0914abcad5d2bcff550db44..168b42510c53efed114f0f4fcc7d797f
          NOTREACHED() << "Invalid pixel format";
          return false;
        }
-@@ -234,10 +245,12 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+@@ -231,13 +243,16 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+       // Mozilla errors out on these color spaces, so I presume that the jpeg
+       // library can't do automatic color space conversion for them. We don't
+       // care about these anyway.
++      LOG(INFO) << "IN bool JPEGCodec::Decode returning false because of jpeg color space";
        return false;
    }
  
@@ -89,7 +94,7 @@ index d1fbdd7f562e9165c0914abcad5d2bcff550db44..168b42510c53efed114f0f4fcc7d797f
    jpeg_start_decompress(cinfo.get());
  
    // FIXME(brettw) we may want to allow the capability for callers to request
-@@ -246,16 +259,21 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+@@ -246,16 +261,21 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
  
    // Create memory for a decoded image and write decoded lines to the memory
    // without conversions same as JPEGCodec::Encode().
@@ -113,7 +118,7 @@ index d1fbdd7f562e9165c0914abcad5d2bcff550db44..168b42510c53efed114f0f4fcc7d797f
    return true;
  }
  
-@@ -263,17 +281,23 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
+@@ -263,17 +283,23 @@ bool JPEGCodec::Decode(const unsigned char* input, size_t input_size,
  std::unique_ptr<SkBitmap> JPEGCodec::Decode(const unsigned char* input,
                                              size_t input_size) {
    int w, h;
